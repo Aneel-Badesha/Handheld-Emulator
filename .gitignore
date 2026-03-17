@@ -1,3 +1,12 @@
+# ESP-IDF build output
+build/
+sdkconfig
+sdkconfig.old
+dependencies.lock
+
+# ESP-IDF managed components (fetched at build time)
+managed_components/
+
 # Prerequisites
 *.d
 
@@ -53,3 +62,14 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# NES ROM files — do not commit copyrighted ROMs
+*.nes
+*.NES
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*~
+.claude

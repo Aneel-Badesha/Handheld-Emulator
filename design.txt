@@ -1,0 +1,259 @@
+Handheld NES Emulator — Design Document
+========================================
+
+Hardware
+--------
+  Microcontroller : ESP32-S3, dual-core Xtensa LX7 @ 240 MHz
+  PSRAM           : 8 MB Octal SPI
+  Flash           : 16 MB
+  Display         : ILI9341 2.4" TFT, 320x240, RGB565, SPI2 @ 40 MHz
+  Storage         : microSD card (onboard ILI9341 module), FatFS, SPI2 @ 4 MHz
+  Buttons         : 4x GPIO, active-low with pull-ups
+                      GPIO 21  — A      (blue)
+                      GPIO 38  — B      (yellow)
+                      GPIO 45  — Start
+                      GPIO 46  — Select
+  Thumbstick      : Analog, ADC1 on GPIO 4 (X) and GPIO 5 (Y)
+  Audio (future)  : PCM5102A stereo I2S DAC + 3.5mm headphone jack
+                      I2S pins reserved: BCLK=47, WCLK=48, DOUT=14
+  Emulator core   : NOFRENDO (git submodule, components/nofrendo/)
+
+
+Pin Assignments
+---------------
+  ILI9341 display (SPI2)
+    MOSI  GPIO 11   [shared with SD card]
+    MISO  GPIO 13   [shared with SD card]
+    SCLK  GPIO 12   [shared with SD card]
+    CS    GPIO 10
+    DC    GPIO  9
+    RST   GPIO  8
+    BL    GPIO  7   [backlight PWM]
+
+  SD card (SPI2 — same bus as display, separate CS)
+    MOSI  GPIO 11   [shared with ILI9341]
+    MISO  GPIO 13   [shared with ILI9341]
+    SCLK  GPIO 12   [shared with ILI9341]
+    CS    GPIO  6
+
+  Buttons (active-low, internal pull-up)
+    A      GPIO 21  (blue)
+    B      GPIO 38  (yellow)
+    Start  GPIO 45
+    Select GPIO 46
+
+  Thumbstick (ADC1 — ESP32-S3 ADC1 is on GPIO 1-10)
+    X axis  GPIO 4  (ADC1_CH3)
+    Y axis  GPIO 5  (ADC1_CH4)
+
+  I2S — reserved, not connected
+    BCLK  GPIO 47
+    WCLK  GPIO 48
+    DOUT  GPIO 14
+
+  Avoid: GPIO 19-20 (USB D+/D-), GPIO 26-37 (Octal PSRAM interface)
+
+
+Memory Architecture
+-------------------
+
+  +------------------+------------+--------------------------------------+
+  | Region           | Size       | Contents                             |
+  +------------------+------------+--------------------------------------+
+  | Internal SRAM    | 512 KB     | FreeRTOS task stacks                 |
+  |                  |            | NES WRAM (2 KB)                      |
+  |                  |            | NES VRAM (2 KB)                      |
+  |                  |            | NES OAM (256 B)                      |
+  |                  |            | ESP-IDF heap, driver state           |
+  +------------------+------------+--------------------------------------+
+  | PSRAM            | 8 MB       | Frame buffer A - RGB565 256x240      |
+  |                  |            |   = 120 KB                           |
+  |                  |            | Frame buffer B - RGB565 256x240      |
+  |                  |            |   = 120 KB                           |
+  |                  |            | PRG-ROM (up to 512 KB)               |
+  |                  |            | CHR-ROM (up to 512 KB)               |
+  |                  |            | NOFRENDO internal state (~64 KB)     |
+  |                  |            | Free: ~7 MB                          |
+  +------------------+------------+--------------------------------------+
+  | Flash            | 16 MB      | Firmware image                       |
+  |                  |            | NVS partition (save state keys)      |
+  |                  |            | (ROMs live on SD card, not flash)    |
+  +------------------+------------+--------------------------------------+
+
+  Double-buffering strategy:
+    Core 0 emulates frame N+1 into PSRAM buffer B
+    Core 1 DMA-sends frame N from PSRAM buffer A to ILI9341
+    On frame completion: swap buffer pointers via a semaphore
+
+
+FreeRTOS Task Architecture
+---------------------------
+
+  Core 0 (app_cpu):
+    emulator_task  — NOFRENDO main loop (6502 + PPU + APU synthesis)
+    input_task     — polls buttons + thumbstick every 10 ms
+
+  Core 1 (pro_cpu):
+    display_task   — DMA frame transfers to ILI9341 (async SPI)
+    sdcard_task    — ROM loading at boot, save/load state
+
+  Shared state (PSRAM, mutex-protected):
+    Frame buffers A and B
+    ROM data
+    NES input bitmask
+
+
+Design Decisions
+----------------
+
+1. Display: ILI9341 (320x240) instead of SSD1351 (128x128)
+   Decision : Use ILI9341 TFT.
+   Reason   : NES native resolution is 256x240. On SSD1351 this requires
+              a heavy 2:1 downscale causing significant quality loss.
+              ILI9341 at 320x240 fits 256x240 with 32px side margins and
+              no vertical scaling at all. SPI runs at 40 MHz vs SSD1351's
+              20 MHz maximum, giving more DMA headroom.
+   Tradeoff : TFT backlight draws ~100-200 mA vs OLED's lower idle current,
+              but the quality improvement justifies it for gaming.
+
+2. SD card shares SPI2 bus with display
+   Decision : Use the SD card slot on the ILI9341 module (SPI2 shared).
+   Reason   : Eliminates a separate SD card module and a second SPI bus,
+              saving GPIO pins and board space.
+   Tradeoff : SD card and display cannot transfer simultaneously. Since SD
+              is only used for ROM loading at startup, this is fine in practice.
+              ili9341_init() initialises the bus; sdcard_init() adds its device.
+
+3. Emulator core: NOFRENDO
+   Decision : Use NOFRENDO as a git submodule (components/nofrendo/).
+   Reason   : Designed specifically for embedded systems; proven on ESP32
+              (Odroid-Go uses it); supports mappers 0-4 covering ~80% of
+              the NES library; has a clean HAL interface for plugging in
+              custom display/audio/input drivers.
+   Tradeoff : Older codebase; limited mapper support beyond 0-4. The HAL
+              interface is well-defined enough to replace with a custom
+              emulator later without changing the rest of the system.
+
+4. NOFRENDO HAL bridge (components/nofrendo_hal/)
+   Decision : Separate component rather than modifying the submodule.
+   Reason   : Keeps the submodule clean and updatable. The HAL component
+              implements hal_display_frame(), hal_input_poll(), and
+              hal_audio_push() — the three entry points NOFRENDO calls.
+
+5. DMA frame transfers (async SPI)
+   Decision : Use ili9341_draw_frame_async() with ili9341_wait_frame_done().
+   Reason   : At 40 MHz SPI, a 320x240x2 byte frame takes ~30 ms to transfer.
+              Without DMA, the CPU blocks for the entire transfer window,
+              making 60 FPS impossible. With async DMA on Core 1, Core 0
+              runs the emulator in parallel during the transfer.
+
+6. ADC continuous mode for thumbstick
+   Decision : Keep the ISR-notified continuous ADC approach from sd-card-reader.
+   Reason   : Provides smooth, low-latency analog reads without polling.
+              The background task updates a mutex-protected value pair that
+              any other task can read at any time.
+   Change   : Remapped from GPIO 36/39 (ESP32-only) to GPIO 4/5 (ADC1_CH3/CH4
+              on ESP32-S3, which has ADC1 on GPIO 1-10).
+
+7. WiFi and Bluetooth disabled
+   Decision : Both disabled in sdkconfig.defaults.
+   Reason   : No network features needed. WiFi draws 100-300 mA when active
+              and ~10-20 mA quiescent even when idle. Disabling it also
+              removes the LwIP networking stack from the firmware image,
+              freeing SRAM.
+
+8. Power management
+   Decision : Enable CONFIG_PM_ENABLE and FREERTOS_USE_TICKLESS_IDLE.
+   Reason   : The emulator has predictable timing (16.67 ms/frame). Between
+              frame completions the MCU can enter light sleep, reducing idle
+              current. Combined with backlight PWM dimming on inactivity,
+              this extends battery life meaningfully.
+
+9. Audio deferred (I2S pins reserved)
+   Decision : Reserve I2S GPIO pins now, implement audio later.
+   Hardware : PCM5102A stereo I2S DAC module + 3.5mm TRS headphone jack.
+   Reason   : Retrofitting I2S requires knowing the pins before other
+              peripherals are wired. PCM5102A is chosen over MAX98357A
+              because it is stereo and drives headphones directly (MAX98357A
+              is a mono speaker amplifier).
+
+
+Problems and Challenges
+-----------------------
+
+1. SPI bus sharing (display + SD card)
+   Problem  : The ILI9341 and SD card share SPI2. Concurrent access would
+              corrupt both. The SD driver calls spi_bus_add_device() on an
+              already-initialised bus — it does not call spi_bus_initialize().
+              If ili9341_init() has not run first, sdcard_init() will fail.
+   Mitigation: Call order in app_main() is enforced: ili9341_init() then
+              sdcard_init(). The SPI2 bus is never freed.
+
+2. Frame rate budget (16.67 ms per frame at 60 FPS)
+   Problem  : SPI DMA at 40 MHz for a 320x240 frame takes ~30 ms. This alone
+              exceeds the frame budget if done synchronously.
+   Mitigation: Double-buffer + async DMA on Core 1. Core 0 can emulate the
+              next frame while Core 1 is DMA-ing the current one.
+              Actual emulation + PPU rendering on LX7 @ 240 MHz: ~5-8 ms.
+              Total pipeline latency stays within one frame period.
+
+3. PSRAM / Octal SPI pin conflicts
+   Problem  : ESP32-S3 Octal PSRAM occupies GPIO 26-37. Any SPI device using
+              those pins will conflict with the PSRAM interface.
+   Mitigation: All peripheral pins are assigned outside this range. Verify
+              against your specific module's datasheet before wiring.
+
+4. ADC1 channel mapping on ESP32-S3
+   Problem  : ADC1 channels map to different GPIO numbers on ESP32-S3 vs ESP32.
+              GPIO 36/39 from the original project do not exist on S3.
+   Fix      : Remapped to GPIO 4 (ADC1_CH3) and GPIO 5 (ADC1_CH4).
+
+5. NES resolution vs ILI9341 resolution
+   Problem  : NES outputs 256x240; ILI9341 is 320x240.
+   Solution : Display 256x240 centred with 32px black margins on each side,
+              OR scale 256x240 to fill 320x240 (1.25x horizontal stretch).
+              Both approaches avoid vertical scaling entirely.
+
+6. Mapper support scope
+   Problem  : NES games use many different mapper chips for ROM bank switching.
+              Supporting all mappers requires significant development effort.
+   Mitigation: NOFRENDO supports mappers 0, 1, 2, 3, and 4, which covers
+              approximately 80% of the commercial NES library. Start here.
+
+7. FatFS SD card at 4 MHz
+   Problem  : Loading a 512 KB ROM at 4 MHz SPI takes ~1 second. This is
+              noticeable but acceptable since it happens once at game launch.
+   Future   : Increase to 20 MHz once tested on final PCB (breadboard wiring
+              caused CRC errors at higher speeds in the reference project).
+
+8. I2S audio not yet wired
+   Problem  : NOFRENDO generates audio samples but there is no output path.
+   Current  : hal_audio_push() is a no-op stub.
+   Future   : Wire PCM5102A to the reserved I2S pins and implement the
+              I2S DMA callback in nofrendo_hal.c.
+
+
+Tradeoffs Summary
+-----------------
+
+  Feature               Choice              Alternative        Reason
+  --------------------  ------------------  -----------------  -------------------------
+  Display               ILI9341 320x240     SSD1351 128x128    Resolution match to NES
+  SD interface          SPI (shared SPI2)   SDMMC 4-bit        Pin flexibility, no extra bus
+  Emulator core         NOFRENDO            Custom / Nesalizer  Proven on ESP32, clean HAL
+  Audio                 PCM5102A (I2S)      MAX98357A / PWM    Stereo headphone quality
+  ADC                   Continuous + ISR    Polling            Smooth low-latency reads
+  Networking            Disabled            WiFi OTA           Battery life
+  SPI DMA               Async double-buffer Synchronous        60 FPS requires overlap
+
+
+Future Work
+-----------
+  - Implement ILI9341 driver (ili9341.c)
+  - Implement NOFRENDO HAL display path with palette conversion + scaling
+  - ROM browser UI (list .nes files from /sdcard)
+  - Add PCM5102A hardware and implement hal_audio_push() via I2S DMA
+  - Save state support (write NOFRENDO state to SD card)
+  - Backlight dimming on inactivity (PWM on GPIO 7)
+  - Consider replacing NOFRENDO with a custom 6502/PPU/APU implementation
+    once the HAL is validated
