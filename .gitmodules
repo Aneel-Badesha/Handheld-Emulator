@@ -1,0 +1,3 @@
+[submodule "components/nofrendo"]
+	path = components/nofrendo
+	url = https://github.com/nwagyu/nofrendo.git
