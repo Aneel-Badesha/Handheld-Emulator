@@ -1,8 +1,26 @@
 Handheld NES Emulator — Design Document
 ========================================
 
-Hardware
---------
+Original NES Hardware
+---------------------
+  CPU             : Ricoh 2A03 (MOS 6502 variant) @ 1.789 MHz (NTSC)
+  RAM             : 2 KB internal WRAM
+  PPU             : Ricoh 2C02 @ 5.37 MHz
+                      256x240 output resolution (NTSC visible: 256x224)
+                      4 KB VRAM (nametables)
+                      256 B OAM (64 sprites × 4 bytes)
+                      64-colour palette (25 unique displayable)
+                      8 sprites per scanline, 64 total
+                      Background: 8x8 tiles from pattern table
+  APU             : 5 channels — 2× pulse wave, 1× triangle, 1× noise, 1× DMC
+  Cartridge ROM   : PRG-ROM (program) + CHR-ROM (pattern tiles)
+                      Mapper chips on cartridge handle bank switching
+  Frame rate      : 60.098 FPS (NTSC)
+  Colours on screen: Max 25 background + 12 sprite colours simultaneously
+
+
+Target Hardware
+---------------
   Microcontroller : ESP32-S3, dual-core Xtensa LX7 @ 240 MHz
   PSRAM           : 8 MB Octal SPI
   Flash           : 16 MB
