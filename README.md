@@ -122,7 +122,7 @@ make clean
 Two cores run in parallel for 60 FPS:
 
 - **Core 0:** NES emulator (NOFRENDO) + input polling
-- **Core 1:** ILI9341 display DMA + SD card task
+- **Core 1:** ILI9341 display DMA + SD card task 
 
 Frame buffers (double-buffered in PSRAM): Core 0 renders into buffer B while Core 1 DMA-transfers buffer A to the display.
 
