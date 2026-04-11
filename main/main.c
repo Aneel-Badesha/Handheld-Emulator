@@ -1,102 +1,70 @@
-#include "button.h"
 #include "ili9341.h"
-#include "nes_input.h"
-#include "nofrendo_hal.h"
 #include "sdcard.h"
-#include "thumbstick.h"
+#include "nes_input.h"
 
+#include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-/* ------------------------------------------------------------------ */
-/*  Pin definitions                                                    */
-/* ------------------------------------------------------------------ */
+static const char *TAG = "main";
 
-/* Buttons (active-low, internal pull-up) */
-#define PIN_BTN_A      4
-#define PIN_BTN_B      5
-#define PIN_BTN_START  6
-#define PIN_BTN_SELECT 7
-
-/* Thumbstick ADC (ADC1 only — ADC2 unusable with Wi-Fi on S3) */
-#define PIN_STICK_X 1   /* ADC1_CH0 */
-#define PIN_STICK_Y 2   /* ADC1_CH1 */
-
-/* ILI9341 display (FSPI — bus shared with SD card) */
-#define PIN_LCD_MOSI 11
-#define PIN_LCD_MISO 13
-#define PIN_LCD_SCLK 12
-#define PIN_LCD_CS   10
-#define PIN_LCD_DC   46
-#define PIN_LCD_RST   3
-#define PIN_LCD_BL   45  /* PWM */
-
-/* SD card (FSPI — shares MOSI/MISO/SCLK with display) */
-#define PIN_SD_CS 9
-
-/* I2S reserved for future PCM5102A headphone audio — do not use */
-#define PIN_I2S_BCLK 47
-#define PIN_I2S_WCLK 48
-#define PIN_I2S_DOUT 14
-
-/* ------------------------------------------------------------------ */
-/*  Task prototypes                                                    */
-/* ------------------------------------------------------------------ */
-
-static void emulator_task(void *arg);
-static void display_task(void *arg);
-static void input_task(void *arg);
-static void sdcard_task(void *arg);
-
-/* ------------------------------------------------------------------ */
-/*  app_main                                                          */
-/* ------------------------------------------------------------------ */
-
-void app_main(void)
+/* Read inputs in a loop to confirm buttons and thumbstick work */
+static void input_test_task(void *arg)
 {
-    /* Initialize hardware */
-    ili9341_init();
-    sdcard_init();
-    nes_input_init();
-    thumbstick_init();
-
-    /* Spawn FreeRTOS tasks */
-    xTaskCreatePinnedToCore(sdcard_task,   "sdcard",    4096, NULL, 5, NULL, 1);
-    xTaskCreatePinnedToCore(input_task,    "input",     4096, NULL, 5, NULL, 0);
-    xTaskCreatePinnedToCore(display_task,  "display",   8192, NULL, 5, NULL, 1);
-    xTaskCreatePinnedToCore(emulator_task, "emulator", 16384, NULL, 5, NULL, 0);
-}
-
-/* ------------------------------------------------------------------ */
-/*  Task stubs — to be implemented                                    */
-/* ------------------------------------------------------------------ */
-
-static void sdcard_task(void *arg)
-{
-    /* TODO: list ROMs on SD card, load selected ROM into PSRAM */
-    vTaskDelete(NULL);
-}
-
-static void input_task(void *arg)
-{
-    /* TODO: poll thumbstick + buttons, update shared NES input state */
+    uint8_t prev = 0;
     for (;;) {
+        uint8_t cur = nes_input_read();
+        if (cur != prev) {
+            ESP_LOGI(TAG, "input: 0x%02X  A=%d B=%d SEL=%d STA=%d U=%d D=%d L=%d R=%d",
+                cur,
+                !!(cur & NES_BTN_A),
+                !!(cur & NES_BTN_B),
+                !!(cur & NES_BTN_SELECT),
+                !!(cur & NES_BTN_START),
+                !!(cur & NES_BTN_UP),
+                !!(cur & NES_BTN_DOWN),
+                !!(cur & NES_BTN_LEFT),
+                !!(cur & NES_BTN_RIGHT));
+            prev = cur;
+        }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
-static void display_task(void *arg)
+void app_main(void)
 {
-    /* TODO: receive rendered frame buffers and DMA to ILI9341 */
-    for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(16));
-    }
-}
+    ESP_LOGI(TAG, "--- init start ---");
 
-static void emulator_task(void *arg)
-{
-    /* TODO: run NOFRENDO emulator loop — calls hal_display_frame / hal_input_poll */
-    for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(16));
+    /* ili9341_init() must come first — it owns the SPI2 bus */
+    ESP_ERROR_CHECK(ili9341_init());
+    ESP_LOGI(TAG, "display OK");
+
+    /* Paint the screen blue so we can see the display is alive */
+    ili9341_clear(RGB565(0, 0, 255));
+
+    esp_err_t sd_err = sdcard_init();
+    if (sd_err != ESP_OK) {
+        ESP_LOGW(TAG, "SD card init failed (0x%x) — skipping", sd_err);
+    } else {
+        ESP_LOGI(TAG, "SD card OK");
     }
+
+    ESP_ERROR_CHECK(nes_input_init());
+    ESP_LOGI(TAG, "input OK");
+
+    ESP_LOGI(TAG, "--- init done ---");
+
+    /* Blink through a few colors to confirm DMA blit works */
+    uint16_t colors[] = {
+        RGB565(255, 0,   0),    /* red   */
+        RGB565(0,   255, 0),    /* green */
+        RGB565(0,   0,   255),  /* blue  */
+        RGB565(0,   0,   0),    /* black */
+    };
+    for (int i = 0; i < 4; i++) {
+        ili9341_clear(colors[i]);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+
+    xTaskCreatePinnedToCore(input_test_task, "input_test", 4096, NULL, 5, NULL, 0);
 }
