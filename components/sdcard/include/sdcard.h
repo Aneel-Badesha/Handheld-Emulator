@@ -2,12 +2,11 @@
 #define SDCARD_H
 
 #include "esp_err.h"
-#include <stdint.h>
 
-/*
- * Add the SD card as a device on the SPI2 bus.
- * ili9341_init() must be called first — it initializes the shared SPI2 bus.
- */
+/* Initialize the SPI3 bus for the SD card (MOSI=15, MISO=16, SCLK=17, CS=18) */
+esp_err_t sdcard_bus_init(void);
+
+/* Mount the SD card filesystem — call after sdcard_bus_init() */
 esp_err_t sdcard_init(void);
 
 /* Read first line of a file and log it */

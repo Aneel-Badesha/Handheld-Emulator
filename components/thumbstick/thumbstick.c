@@ -77,6 +77,7 @@ static esp_err_t s_adc_init(void)
     adc_continuous_config_t dig_cfg = {
         .sample_freq_hz = 20 * 1000,
         .conv_mode      = THUMBSTICK_ADC_CONV_MODE,
+        .format         = ADC_DIGI_OUTPUT_FORMAT_TYPE2,  /* required on ESP32-S3 */
         .pattern_num    = THUMBSTICK_CHANNEL_SIZE,
         .adc_pattern    = adc_pattern,
     };
