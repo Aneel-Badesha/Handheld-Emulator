@@ -13,26 +13,26 @@
 /* ------------------------------------------------------------------ */
 
 /* Buttons (active-low, internal pull-up) */
-#define PIN_BTN_A      21
-#define PIN_BTN_B      38
-#define PIN_BTN_START  45
-#define PIN_BTN_SELECT 46
+#define PIN_BTN_A      4
+#define PIN_BTN_B      5
+#define PIN_BTN_START  6
+#define PIN_BTN_SELECT 7
 
-/* Thumbstick ADC (ADC1) */
-#define PIN_STICK_X 4   /* ADC1_CH3 */
-#define PIN_STICK_Y 5   /* ADC1_CH4 */
+/* Thumbstick ADC (ADC1 only — ADC2 unusable with Wi-Fi on S3) */
+#define PIN_STICK_X 1   /* ADC1_CH0 */
+#define PIN_STICK_Y 2   /* ADC1_CH1 */
 
-/* ILI9341 display (SPI2 — bus shared with SD card) */
+/* ILI9341 display (FSPI — bus shared with SD card) */
 #define PIN_LCD_MOSI 11
 #define PIN_LCD_MISO 13
 #define PIN_LCD_SCLK 12
 #define PIN_LCD_CS   10
-#define PIN_LCD_DC    9
-#define PIN_LCD_RST   8
-#define PIN_LCD_BL    7
+#define PIN_LCD_DC   46
+#define PIN_LCD_RST   3
+#define PIN_LCD_BL   45  /* PWM */
 
-/* SD card (SPI2 — shares MOSI/MISO/SCLK with display) */
-#define PIN_SD_CS 6
+/* SD card (FSPI — shares MOSI/MISO/SCLK with display) */
+#define PIN_SD_CS 9
 
 /* I2S reserved for future PCM5102A headphone audio — do not use */
 #define PIN_I2S_BCLK 47
