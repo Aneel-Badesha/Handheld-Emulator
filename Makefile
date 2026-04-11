@@ -1,4 +1,4 @@
-PORT ?= COM3
+PORT ?= COM4
 TARGET ?= esp32s3
 
 .PHONY: all build flash monitor flash-monitor clean menuconfig set-target

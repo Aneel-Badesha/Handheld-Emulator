@@ -1,0 +1,45 @@
+TODO — ESP32-S3 NES Handheld Emulator
+======================================
+
+DISPLAY (components/ili9341/)
+[ ] Implement SPI2 bus init in ili9341_init() (MOSI=11, MISO=13, SCLK=12, CS=10, DC=9, RST=8, BL=7 @ 40MHz)
+[ ] Send ILI9341 init command sequence (reset, sleep-out, pixel format, orientation, etc.)
+[ ] Implement ili9341_clear() — flood-fill screen with a solid color via SPI
+[ ] Implement ili9341_fill_rect() — write a color rectangle via SPI
+[ ] Implement ili9341_draw_frame_async() — DMA transfer of a full 320x240 RGB565 frame
+[ ] Implement ili9341_wait_frame_done() — block until DMA transfer completes
+[ ] Add backlight control (GPIO 7, PWM or simple on/off)
+
+NOFRENDO BUILD INTEGRATION (components/nofrendo/)
+[ ] Write components/nofrendo/CMakeLists.txt to compile the submodule sources as an ESP-IDF component
+[ ] Write an ESP-IDF osd.c implementing the osd.h interface (osd_init, osd_shutdown,
+    osd_getvideoinfo, osd_getsoundinfo, osd_getinput, osd_installtimer, etc.)
+    — replaces the Linux/SDL osd.c in the submodule
+
+HAL BRIDGE (components/nofrendo_hal/)
+[ ] Implement hal_display_frame(): convert 256x240 palette-indexed frame → RGB565,
+    scale/letterbox to 320x240, write to back PSRAM buffer
+[ ] Implement hal_audio_push(): I2S driver for PCM5102A (BCLK=47, WCLK=48, DOUT=14)
+
+DOUBLE-BUFFER / INTER-TASK PLUMBING (main/)
+[ ] Allocate two 320x240 RGB565 frame buffers in PSRAM (153 600 bytes each)
+[ ] Implement ping-pong swap mechanism (FreeRTOS semaphore/notification) between
+    emulator_task and display_task
+
+FREERTOS TASKS (main/main.c — all currently stubs)
+[ ] emulator_task: initialize NOFRENDO with a loaded ROM, run the emulator loop,
+    call hal_display_frame / hal_input_poll each frame, signal display_task when done
+[ ] display_task: wait for frame-ready signal, call ili9341_draw_frame_async() +
+    ili9341_wait_frame_done(), swap buffers
+[ ] input_task: poll nes_input_read() every 10 ms, write result to shared bitmask
+    (protect with a mutex or atomic)
+[ ] sdcard_task: list .nes files on SD card, drive a simple ROM-browser UI on the
+    display, load the chosen ROM into PSRAM, then signal emulator_task to start
+
+ROM BROWSER UI
+[ ] Design minimal list-based UI (draw file names via ili9341_fill_rect + text)
+[ ] Thumbstick up/down to scroll, A button to select
+
+CLEANUP
+[ ] Remove or reconcile unused PIN_* #defines in main/main.c — they don't match
+    button.h (BTN_A=GPIO21 vs PIN_BTN_A=4) and are never referenced
