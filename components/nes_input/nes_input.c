@@ -6,9 +6,21 @@
 
 static const char *TAG = "nes_input";
 
-/* Thumbstick thresholds — 40% deadzone around center (2048) */
-#define STICK_HIGH (THUMBSTICK_CENTER + THUMBSTICK_THRESHOLD)  /* 2867 */
-#define STICK_LOW  (THUMBSTICK_CENTER - THUMBSTICK_THRESHOLD)  /* 1229 */
+/* Thumbstick mapping tuned for real hardware variance */
+#define STICK_DEADZONE 450
+
+static bool s_stick_calibrated = false;
+static int32_t s_stick_center_x = THUMBSTICK_CENTER;
+static int32_t s_stick_center_y = THUMBSTICK_CENTER;
+
+static void s_calibrate_stick_center(uint32_t x, uint32_t y)
+{
+    s_stick_center_x = (int32_t)x;
+    s_stick_center_y = (int32_t)y;
+    s_stick_calibrated = true;
+    ESP_LOGI(TAG, "thumbstick center calibrated: x=%ld y=%ld",
+             (long)s_stick_center_x, (long)s_stick_center_y);
+}
 
 esp_err_t nes_input_init(void)
 {
@@ -46,10 +58,17 @@ uint8_t nes_input_read(void)
     /* Thumbstick → D-pad */
     uint32_t x = 0, y = 0;
     if (thumbstick_get_values(&x, &y) == ESP_OK) {
-        if (y > STICK_HIGH) buttons |= NES_BTN_UP;
-        if (y < STICK_LOW)  buttons |= NES_BTN_DOWN;
-        if (x < STICK_LOW)  buttons |= NES_BTN_LEFT;
-        if (x > STICK_HIGH) buttons |= NES_BTN_RIGHT;
+        if (!s_stick_calibrated) {
+            s_calibrate_stick_center(x, y);
+        }
+
+        int32_t dx = (int32_t)x - s_stick_center_x;
+        int32_t dy = (int32_t)y - s_stick_center_y;
+
+        if (dy > STICK_DEADZONE)  buttons |= NES_BTN_UP;
+        if (dy < -STICK_DEADZONE) buttons |= NES_BTN_DOWN;
+        if (dx < -STICK_DEADZONE) buttons |= NES_BTN_LEFT;
+        if (dx > STICK_DEADZONE)  buttons |= NES_BTN_RIGHT;
     }
 
     return buttons;

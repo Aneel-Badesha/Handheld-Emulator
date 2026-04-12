@@ -5,8 +5,8 @@
 #include <stdint.h>
 
 /* ADC pin assignments — ADC1 channels on ESP32-S3 */
-#define THUMBSTICK_PIN_X 4  /* ADC1_CH3 */
-#define THUMBSTICK_PIN_Y 5  /* ADC1_CH4 */
+#define THUMBSTICK_PIN_X 1  /* ADC1_CH0 */
+#define THUMBSTICK_PIN_Y 2  /* ADC1_CH1 */
 
 /* Raw ADC range: 0–4095. Center ~2048. */
 #define THUMBSTICK_CENTER    2048
