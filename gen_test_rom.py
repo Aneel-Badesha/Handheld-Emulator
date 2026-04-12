@@ -134,7 +134,7 @@ header = bytes([
 ])
 
 out = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                   'components', 'nofrendo', 'builtin.nes')
+                   'components', 'nofrendo', 'src', 'games', 'builtin.nes')
 with open(out, 'wb') as f:
     f.write(header + prg + chr_rom)
 

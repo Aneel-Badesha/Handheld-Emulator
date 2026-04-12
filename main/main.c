@@ -14,12 +14,6 @@ static const char *s_rom_path = NULL;
 
 static void emulator_task(void *arg)
 {
-    if (osd_init() != 0) {
-        ESP_LOGE(TAG, "osd_init failed");
-        vTaskDelete(NULL);
-        return;
-    }
-
     ESP_LOGI(TAG, "starting emulator: %s", s_rom_path ? s_rom_path : "built-in demo");
     main_loop(s_rom_path ? s_rom_path : "builtin", system_autodetect);
 
