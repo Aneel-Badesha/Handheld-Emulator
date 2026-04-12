@@ -65,10 +65,10 @@ uint8_t nes_input_read(void)
         int32_t dx = (int32_t)x - s_stick_center_x;
         int32_t dy = (int32_t)y - s_stick_center_y;
 
-        if (dy > STICK_DEADZONE)  buttons |= NES_BTN_UP;
-        if (dy < -STICK_DEADZONE) buttons |= NES_BTN_DOWN;
-        if (dx < -STICK_DEADZONE) buttons |= NES_BTN_LEFT;
-        if (dx > STICK_DEADZONE)  buttons |= NES_BTN_RIGHT;
+        if (dy > STICK_DEADZONE)  buttons |= NES_BTN_DOWN;
+        if (dy < -STICK_DEADZONE) buttons |= NES_BTN_UP;
+        if (dx < -STICK_DEADZONE) buttons |= NES_BTN_RIGHT;
+        if (dx > STICK_DEADZONE)  buttons |= NES_BTN_LEFT;
     }
 
     return buttons;
