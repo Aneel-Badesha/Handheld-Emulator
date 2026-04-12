@@ -27,7 +27,7 @@ void app_main(void)
     ESP_LOGI(TAG, "--- init start ---");
 
     ESP_ERROR_CHECK(ili9341_init());
-    ili9341_clear(0x0000);   /* black — confirms display pipeline works */
+    ili9341_clear(0x0000);   /* black */
     ESP_LOGI(TAG, "display OK");
 
     ESP_ERROR_CHECK(nes_input_init());

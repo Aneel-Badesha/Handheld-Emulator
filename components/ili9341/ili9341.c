@@ -20,7 +20,7 @@ static const char *TAG = "ili9341";
 #define ILI9341_PIN_BL   45
 
 /* SPI clock — ILI9341 supports up to 40 MHz */
-#define ILI9341_SPI_FREQ_HZ (80 * 1000 * 1000)
+#define ILI9341_SPI_FREQ_HZ (10 * 1000 * 1000)
 
 /* Command codes */
 #define CMD_SWRESET  0x01
@@ -45,7 +45,7 @@ static const char *TAG = "ili9341";
  * MX (0x40) + MV (0x20) swaps axes for landscape; BGR (0x08) matches most ILI9341 panels
  * Adjust if colours appear inverted or display is mirrored
  */
-#define MADCTL_VAL (0x40 | 0x20 | 0x08)
+#define MADCTL_VAL (0x20 | 0x08)
 
 /*
  * Async frame DMA: split 240 lines into 15 chunks of 16 lines each
