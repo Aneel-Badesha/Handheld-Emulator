@@ -20,7 +20,7 @@ static const char *TAG = "ili9341";
 #define ILI9341_PIN_BL   45
 
 /* SPI clock — ILI9341 supports up to 40 MHz */
-#define ILI9341_SPI_FREQ_HZ (40 * 1000 * 1000)
+#define ILI9341_SPI_FREQ_HZ (80 * 1000 * 1000)
 
 /* Command codes */
 #define CMD_SWRESET  0x01

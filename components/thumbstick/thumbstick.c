@@ -21,8 +21,8 @@ static const char *TAG = "thumbstick";
 #define THUMBSTICK_READ_LEN      256
 #define THUMBSTICK_CHANNEL_SIZE  2
 
-/* X axis = ADC1_CH3 (GPIO 4), Y axis = ADC1_CH4 (GPIO 5) on ESP32-S3 */
-static const adc_channel_t s_channels[THUMBSTICK_CHANNEL_SIZE] = {ADC_CHANNEL_3, ADC_CHANNEL_4};
+/* X axis = ADC1_CH0 (GPIO 1), Y axis = ADC1_CH1 (GPIO 2) on ESP32-S3 */
+static const adc_channel_t s_channels[THUMBSTICK_CHANNEL_SIZE] = {ADC_CHANNEL_0, ADC_CHANNEL_1};
 
 /* ------------------------------------------------------------------ */
 /*  Module-level state                                                  */
@@ -207,7 +207,7 @@ esp_err_t thumbstick_init(void)
     }
 
     s_initialized = true;
-    ESP_LOGI(TAG, "Thumbstick initialized (X=GPIO4/ADC1_CH3, Y=GPIO5/ADC1_CH4)");
+    ESP_LOGI(TAG, "Thumbstick initialized (X=GPIO1/ADC1_CH0, Y=GPIO2/ADC1_CH1)");
     return ESP_OK;
 }
 

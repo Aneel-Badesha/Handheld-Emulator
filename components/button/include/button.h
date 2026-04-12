@@ -6,10 +6,10 @@
 #include <stdbool.h>
 
 /* Button GPIO pin assignments */
-#define BTN_A      ((gpio_num_t)21)  /* Blue button */
-#define BTN_B      ((gpio_num_t)38)  /* Yellow button */
-#define BTN_START  ((gpio_num_t)45)
-#define BTN_SELECT ((gpio_num_t)46)
+#define BTN_A      ((gpio_num_t)4)
+#define BTN_B      ((gpio_num_t)5)
+#define BTN_START  ((gpio_num_t)6)
+#define BTN_SELECT ((gpio_num_t)7)
 
 /* Configure a GPIO pin as an active-low input with internal pull-up */
 esp_err_t init_button(gpio_num_t gpio_num);
